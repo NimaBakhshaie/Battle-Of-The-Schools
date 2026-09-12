@@ -23,6 +23,11 @@ async function remember(tabId, state) {
 }
 async function notify(tabId, state, error) {
   await remember(tabId, state);
+  const active = await control();
+  if (active?.tabId === tabId && state?.run?.id === active.runId) {
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    await setControl({ ...active, page: tab?.url });
+  }
   try { await chrome.tabs.sendMessage(tabId, { type: 'ORBIT_STATE', state, error }); } catch { /* Page is navigating. */ }
 }
 async function control() { return (await chrome.storage.session.get('control')).control; }
@@ -46,7 +51,7 @@ async function runLoop() {
       const frame = { result: { ...top.result, elements, text: usable.map(f => `[Frame ${f.frameId}] ${f.result.text.slice(0, Math.floor(6000 / usable.length))}`).join('\n').slice(0, 6500) } };
       const response = await request('step', { runId: active.runId, observation: frame.result });
       await notify(active.tabId, response.state);
-      if (!response.action) { await setControl({ ...active, status: response.state.run?.status || 'stopped' }); break; }
+      if (!response.action) { await setControl({ ...await control(), status: response.state.run?.status || 'stopped' }); break; }
       const latest = await control();
       if (latest?.status !== 'running' || latest.runId !== active.runId) break;
       const action = response.action;
@@ -102,7 +107,9 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       const { token } = await chrome.storage.local.get('token');
       if (!token) return { paired: false };
       const state = await request('state');
-      return { paired: true, state, selected: (await control())?.tabId === tabId };
+      const active = await control();
+      const selected = active?.tabId === tabId && active.runId === state.run?.id && (active.status === 'running' || active.page === sender.tab.url);
+      return { paired: true, state: selected ? state : { ...state, run: null }, selected };
     }
     if (message.type === 'ORBIT_START') {
       if (preparing || looping) throw new Error('An agent task is already running.');
@@ -110,10 +117,12 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       try {
         await notify(tabId, null, 'Starting your agent on Steel Computer…');
         await request('connect');
-        const memory = (await chrome.storage.session.get(`memory:${tabId}`))[`memory:${tabId}`] || [];
+        const savedMemory = (await chrome.storage.session.get(`memory:${tabId}`))[`memory:${tabId}`] || [];
+        const url = new URL(sender.tab.url);
+        const memory = savedMemory.filter(item => item.page === url.origin + url.pathname);
         const state = await request('start', { task: message.task, modelMode: message.modelMode, memory });
         await remember(tabId, state);
-        await setControl({ tabId, runId: state.run.id, status: 'running' });
+        await setControl({ tabId, runId: state.run.id, status: 'running', page: sender.tab.url });
         runLoop(); return { state };
       } finally { preparing = false; }
     }
