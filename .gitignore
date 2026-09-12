@@ -1,0 +1,7 @@
+node_modules/
+.pnpm-store/
+.env*
+!.env.example
+.orbit/
+artifacts/
+.DS_Store
