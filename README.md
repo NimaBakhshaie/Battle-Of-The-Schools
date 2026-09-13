@@ -1,99 +1,164 @@
-# Orbit — learn the web by doing
+# Orbit
 
-Orbit keeps the lavender voice orb and floating interface. Ask what you want to accomplish; Orbit highlights **one next control** in your actual Chrome tab. You click, type, choose and navigate. The extension never performs those website actions for you.
+Orbit is a Chrome tutoring extension that teaches people how to use websites, one highlighted step at a time.
 
-## Start
+Ask Orbit a question by typing or speaking—for example, “Show me how to renew my passport.” Orbit studies the page, highlights the next control in your Chrome tab, and tells you what to do. **You remain in control:** Orbit does not click, type, submit forms, or navigate the website for you.
 
-Requires Node 22+, Chrome, an OpenAI key, and a Steel key with **Computer access**. An ElevenLabs key is optional and enables the low-latency “ElevenLabs AI” conversational voice in the extension.
+To improve its guidance, Orbit can inspect and rehearse safe public navigation in a separate, isolated browser running on Steel. That browser does not receive your Chrome profile, cookies, or logged-in session.
+
+## What you need
+
+- [Node.js](https://nodejs.org/) 22 or newer
+- Google Chrome
+- An OpenAI API key
+- A Steel API key with Computer access and available credits
+- Optional: an ElevenLabs API key for the low-latency Eric conversational voice
+
+OpenAI and Steel usage are billed separately. ElevenLabs usage only applies when its voice is selected.
+
+## Quick start
+
+### 1. Install the dependencies
+
+From this repository's root folder, run:
 
 ```sh
 npm install
+```
+
+### 2. Start Orbit
+
+```sh
 npm start
 ```
 
-Open http://127.0.0.1:4318, save keys, load `extension/` unpacked in Chrome, and refresh the website you want to learn. Click Orbit, connect/pair it once, and ask “Show me how to search this website.” Reload the extension after updates; the new version is 0.5.0.
+Keep this terminal open while using Orbit. The local workspace runs at [http://127.0.0.1:4318](http://127.0.0.1:4318).
 
-The first question provisions/resumes Steel Computer and installs Python Playwright in a remote virtual environment. This can take a few minutes. Chromium is not installed: Playwright connects to a separate Steel Browser over CDP. Both Steel services consume credits separately from OpenAI.
+On macOS, after running `npm install` once, you can alternatively double-click `Start Orbit.command`.
+
+### 3. Load the Chrome extension
+
+1. Open `chrome://extensions` in Chrome.
+2. Turn on **Developer mode**.
+3. Click **Load unpacked**.
+4. Select this repository's `extension` folder.
+5. Pin Orbit from Chrome's Extensions menu if you want its toolbar icon to remain visible.
+
+Orbit cannot run on Chrome's internal pages, including `chrome://extensions`. Open or refresh an ordinary `http://` or `https://` website before using it.
+
+### 4. Add your keys and pair the extension
+
+1. Open an ordinary website and click the Orbit toolbar icon.
+2. Click the circular Orbit icon on the right side of the page to expand the panel.
+3. Click **Connect Orbit** or **Settings**. Orbit opens its local settings page.
+4. Enter your OpenAI and Steel API keys. The ElevenLabs key is optional.
+5. Click **Save keys locally**, then **Pair extension**.
+6. Return to the website tab.
+
+The keys are saved in `.env.local` on your computer. They are not stored in Chrome or sent to the extension.
+
+You can also configure the keys manually. Copy `.env.example` to `.env.local`, fill in the values below, and restart Orbit:
+
+```dotenv
+OPENAI_API_KEY=sk-...
+STEEL_API_KEY=ste-...
+# Optional; the voice ID defaults to Eric when omitted.
+ELEVENLABS_API_KEY=...
+ELEVENLABS_VOICE_ID=...
+```
+
+### 5. Ask your first question
+
+Open the website you want to learn, expand the Orbit panel, and try:
+
+> Show me how to search this website.
+
+Orbit will inspect the website and then highlight one control in purple. Follow the instruction yourself, then use **Check my progress** if Orbit does not automatically detect the page change.
+
+The first question can take a few minutes while Orbit prepares Steel Computer, installs its remote Python environment, and starts an isolated Steel Browser. Later questions can reuse the prepared computer.
+
+## Using Orbit
+
+- Type a question in the floating panel or click **Talk to Orbit**.
+- Click the small circular icon to open or close the panel. Spoken guidance does not open it automatically.
+- Follow the purple highlight in your own tab; Orbit never performs the highlighted action for you.
+- Use **Pause**, **Resume**, or **Stop** to control the current question.
+- If “Hello Orbit” is enabled, say **“Hello Orbit, resume”** to continue a paused question.
+- Open **Settings** to choose a model or switch between a browser voice and ElevenLabs Eric.
+
+Only one question can be active at a time. Pause or stop it before starting a different question.
 
 ## How it works
 
-1. The extension collects a compact current-page observation, including accessible frames and open shadow roots. It sends neither cookies nor password values.
-2. The coordinator wakes Steel Computer and installs `server/tutor-runtime.py` plus the shared snapshot function.
-3. Steel Computer creates an isolated 15-minute Steel Browser. No learner profile, cookies or login state is copied. Practice uses a public URL without query/fragment.
-4. Python Playwright runs **on Steel Computer**, navigates that browser, extracts evidence, and saves a screenshot and observation.
-5. The coordinator reserves a model request containing both the learner's current page and the public evidence. That paid request executes on Steel Computer, without automatic retries.
-6. Where supported, Steel Computer rehearses the proposed navigation: an unambiguous same-origin public link or a scroll. Arbitrary buttons, form submissions, login and final actions are not rehearsed. Mutating HTTP methods are blocked in the practice browser.
-7. The validated action returns to the extension, which draws a purple ring and instruction. It never clicks, fills, presses keys, submits or navigates.
-8. A trusted user interaction, navigation, or “Check my progress” triggers a fresh observation. No model calls run while the learner considers a highlight. A click alone never proves the requested outcome.
+1. The extension creates a compact observation of the visible website, including accessible frames and open shadow roots. It excludes password values.
+2. The local Node server manages pairing, task state, safety checks, and the tracked OpenAI budget.
+3. Steel Computer opens an isolated Steel Browser to inspect the public version of the page and save evidence.
+4. OpenAI chooses one next action for the learner based on the real tab and available public evidence.
+5. The extension highlights that action in the learner's tab.
+6. After the learner acts, Orbit observes the page again and adapts the next instruction.
 
-There is no lesson plan. Guidance adapts one step at a time to the learner's page. Wrong clicks trigger reobservation. Typing finishes on field change/blur or Enter, not every keystroke. Pause removes highlights; Resume rereads the page.
+Orbit does not create a fixed lesson plan. It responds to the page as it changes, including when the learner takes a different path.
 
-## Watch Orbit work
+### Practice status
 
-Choose **Watch Orbit explore** in the floating panel. The themed workspace shows the practice browser, current guidance, actual remote filenames and an on-demand screenshot. A new question from this linked workspace goes to the website tab that opened it. Stop or pause a current question before starting another.
+The interface distinguishes between:
 
-The UI distinguishes:
+- **Navigation rehearsed:** Orbit verified a safe public navigation in the isolated browser.
+- **Public page inspected:** Orbit gathered public evidence but did not rehearse the action.
+- **Guidance from your current page:** the separate browser could not inspect the page, often because it requires a login or is not publicly reachable.
 
-- **Navigation rehearsed:** public navigation happened in the separate browser. This does not certify the user's outcome.
-- **Public page inspected:** evidence exists, but the action was not rehearsed.
-- **Guidance from your current page:** the separate browser could not inspect the page, for example because of login, private hosting or a load failure. Orbit does not claim rehearsal.
+The optional practice viewer is read-only. Perform every real action in your own website tab.
 
-The practice viewer is for observation. Follow the highlights in your own website tab.
+## Privacy, safety, and limits
 
-## Computer workspace
+- Your cookies, Chrome profile, and logged-in session are not copied to Steel Browser.
+- Visible page text and your question are sent to OpenAI through Steel Computer. Public-page evidence can be stored temporarily on that computer.
+- Passwords, payment details, one-time codes, CAPTCHAs, and sensitive final actions are left to you.
+- Orbit will not complete checkout, publish, send messages, delete records, or change account security settings.
+- Chrome speech recognition may send microphone audio to Chrome's speech provider.
+- When ElevenLabs is selected, reply text is sent to ElevenLabs for speech generation. The local server makes this request so the API key stays out of the extension.
+- The built-in ledger allows up to 60 guidance decisions and $0.25 of tracked OpenAI usage per question, with a $1.80 total limit. These figures are application limits, not live provider balances. Steel and ElevenLabs costs are separate.
+- Orbit is designed for one trusted local user. Do not expose port 4318 to the public internet.
 
-Each task uses `/tmp/orbit-agent/missions/<run-id>/` on Steel Computer:
+## Troubleshooting
 
-```text
-state.json          Browser handle, phase, count and latest evidence filename
-events.jsonl        Actual observation/rehearsal/guidance events
-observation.json    Latest public-browser snapshot
-site-map.json       Observed pages and verified public navigation transitions
-guidance.json       Most recent structured instruction
-progress.json       Recent user interaction history
-evidence-N.png      Public-browser screenshots
-```
+- **The Orbit icon does not appear on a website:** Reload the extension from `chrome://extensions`, then refresh the website. Content scripts cannot run on Chrome internal pages or some protected pages.
+- **The panel says the local server is offline:** Run `npm start`, keep the terminal open, and confirm that [http://127.0.0.1:4318](http://127.0.0.1:4318) loads.
+- **Orbit asks to connect again:** Open **Settings** from the extension and click **Pair extension**. Reloading the unpacked extension can change its connection state.
+- **A manually edited key is not recognized:** Restart `npm start` after changing `.env.local`.
+- **Orbit says another question is active:** Resume, pause, or stop the existing question first. With wake voice enabled, say “Hello Orbit, resume.”
+- **You updated the source code:** Reload Orbit on `chrome://extensions`, then refresh every open website tab that should use the new version.
 
-These files persist on that computer's filesystem between invocations. They are not a durable backup across VM deletion or loss of /tmp. The local coordinator still owns active-run state and cost tracking; a server restart currently requires a new question. This prototype does not claim detached learning or full crash recovery.
+## Development and verification
 
-| Component | Responsibility |
-|---|---|
-| Extension | Observe learner's page, highlight, detect user interaction |
-| Local Node server | Pairing, budgets, validation, task lifecycle, UI |
-| Steel Computer | Playwright/CDP client, public inspection, bounded rehearsal, model calls, evidence and progress files |
-| Steel Browser | Isolated public practice website and live viewer |
-| OpenAI | Select one next user action from learner's page and public evidence |
-
-Primary files: server/index.mjs, server/computer.mjs, server/tutor-runtime.py, server/planner.mjs, extension/background.js, extension/guidance.js, extension/page-tools.js and extension/overlay.js.
-
-Former autonomous browser helpers remain in server/browser.mjs and actOnPage for fixture coverage, but the tutor extension does not import or call the executor. The public run API no longer starts autonomous shopping.
-
-## Boundaries and costs
-
-- $1.80 tracked OpenAI total, $0.25 per task, 60 non-wait decisions. Fixed code rates, not a live account balance. Keep the .orbit/budget.json ledger when moving installations.
-- Every request reserves cost before sending; ambiguous errors retain their reservation.
-- Steel Computer: 1 vCPU, 512 MiB, one-hour maximum, 15-minute idle pause. Browsers expire after 15 minutes and are released on completion or Stop. Shutdown also pauses the computer.
-- Login, passwords, payment data and final sensitive steps require the user. Some embedded/custom controls and browser-internal pages are unsupported.
-- Visible page text goes to Steel Computer and OpenAI; public screenshots and guidance are saved on the computer. The snapshot is not complete personal-data anonymization.
-- Chrome speech recognition may send audio to its speech provider. When the ElevenLabs voice is selected, spoken reply text is sent to ElevenLabs for text-to-speech. Keys stay out of the extension; the local server makes the ElevenLabs request.
-- Single trusted local user, one active question. Do not expose the loopback server publicly.
-
-## Verification
+Run the automated test suite with:
 
 ```sh
 npm test
-# Include browser fixture tests:
-TEST_CHROME_PATH="/path/to/chrome" npm test
 ```
 
-On PowerShell set $env:TEST_CHROME_PATH before npm test.
+To use an installed Chrome binary for browser-based tests, set `TEST_CHROME_PATH` first:
 
-tests/tutor.test.mjs verifies highlights never click/type, user interactions advance, wrong clicks reobserve, pause cleanup, sensitive-field rejection, remote transport and desktop/mobile rendering. Screenshots use synthetic fixtures.
+```powershell
+$env:TEST_CHROME_PATH = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+npm test
+```
 
-An explicit **Steel-billed, no-OpenAI** check is available:
+The explicit live Steel smoke test provisions billable Steel resources but makes no OpenAI request:
 
 ```sh
 node --env-file=.env.local tests/steel-tutor-smoke.mjs --live
 ```
 
-It provisions a test computer, inspects example.com with remote Playwright, checks files, releases the browser and pauses the computer. A fixture test is not a live Steel or end-to-end model run.
+## Main components
+
+| Component | Responsibility |
+|---|---|
+| Chrome extension | Observe the learner's page, show the floating interface, highlight controls, and detect learner interactions |
+| Local Node server | Store keys locally, pair the extension, manage tasks and budgets, and coordinate services |
+| Steel Computer | Run the remote tutor environment, model requests, public inspection, and evidence storage |
+| Steel Browser | Provide an isolated public website session and read-only viewer |
+| OpenAI | Select one safe next action for the learner |
+| ElevenLabs | Optionally generate the Eric speaking voice |
+
+Key implementation files are `server/index.mjs`, `server/computer.mjs`, `server/tutor-runtime.py`, `server/planner.mjs`, `extension/background.js`, `extension/guidance.js`, `extension/page-tools.js`, and `extension/overlay.js`.
