@@ -1,74 +1,99 @@
-> Current-tab extension (v0.3): supports ordinary HTTP/HTTPS websites through Steel Computer. Reload Orbit in chrome://extensions after updating, allow the expanded site permissions, then refresh the website and click Orbit. Send starts a fresh mission; Resume continues the previous mission with the text in the input as clarification. Quantity observations include current count and bounds. Checkout, login/CAPTCHA, and final sensitive actions remain manual. Browser-internal pages and some complex embedded/custom controls are unsupported. The quantity path has local fixture coverage; live site behavior varies.
+# Orbit — learn the web by doing
 
-# Orbit
-
-A Chrome toolbar extension that opens a local voice workspace with an animated, microphone-reactive orb and an embedded live Steel browser. Say “Go to Metro and add eggs to my cart” or type a command. This first version is scoped to Metro.ca and cart additions.
+Orbit keeps the lavender voice orb and floating interface. Ask what you want to accomplish; Orbit highlights **one next control** in your actual Chrome tab. You click, type, choose and navigate. The extension never performs those website actions for you.
 
 ## Start
 
-Requires Node.js 22+ and an OpenAI API key plus a Steel API key. On this Mac, double-click **Start Orbit.command**, which also detects the bundled Codex Node runtime. On another machine:
+Requires Node 22+, Chrome, an OpenAI key, and a Steel key with **Computer access**. An ElevenLabs key is optional and enables the low-latency “ElevenLabs AI” conversational voice in the extension.
 
 ```sh
 npm install
 npm start
 ```
 
-Open http://127.0.0.1:4318 in **Google Chrome**. Click **Set up Orbit**, enter both keys, and choose **Save keys locally**. Keys are written to the approved `.env.local` file with owner-only permissions and are ignored by Git. They are never returned by the server. Updating keys requires ending the browser session first.
+Open http://127.0.0.1:4318, save keys, load `extension/` unpacked in Chrome, and refresh the website you want to learn. Click Orbit, connect/pair it once, and ask “Show me how to search this website.” Reload the extension after updates; the new version is 0.5.0.
 
-## Load the extension
+The first question provisions/resumes Steel Computer and installs Python Playwright in a remote virtual environment. This can take a few minutes. Chromium is not installed: Playwright connects to a separate Steel Browser over CDP. Both Steel services consume credits separately from OpenAI.
 
-1. In Chrome, open `chrome://extensions`.
-2. Turn on **Developer mode** and click **Load unpacked**.
-3. Select the `extension` directory in this project.
-4. Pin Orbit. Click its icon (or Option+Shift+O) to open the workspace.
+## How it works
 
-The toolbar extension launches a full browser tab so microphone capture and the live browser have enough room. It requires the companion server to remain running. It does not control your existing Chrome tabs or borrow their cookies.
+1. The extension collects a compact current-page observation, including accessible frames and open shadow roots. It sends neither cookies nor password values.
+2. The coordinator wakes Steel Computer and installs `server/tutor-runtime.py` plus the shared snapshot function.
+3. Steel Computer creates an isolated 15-minute Steel Browser. No learner profile, cookies or login state is copied. Practice uses a public URL without query/fragment.
+4. Python Playwright runs **on Steel Computer**, navigates that browser, extracts evidence, and saves a screenshot and observation.
+5. The coordinator reserves a model request containing both the learner's current page and the public evidence. That paid request executes on Steel Computer, without automatic retries.
+6. Where supported, Steel Computer rehearses the proposed navigation: an unambiguous same-origin public link or a scroll. Arbitrary buttons, form submissions, login and final actions are not rehearsed. Mutating HTTP methods are blocked in the practice browser.
+7. The validated action returns to the extension, which draws a purple ring and instruction. It never clicks, fills, presses keys, submits or navigates.
+8. A trusted user interaction, navigation, or “Check my progress” triggers a fresh observation. No model calls run while the learner considers a highlight. A click alone never proves the requested outcome.
 
-## First task
+There is no lesson plan. Guidance adapts one step at a time to the learner's page. Wrong clicks trigger reobservation. Typing finishes on field change/blur or Enter, not every keystroke. Pause removes highlights; Resume rereads the page.
 
-1. Click **Connect browser**. Steel opens Metro in a new cloud browser, billed separately by Steel. Sessions last at most 15 minutes.
-2. Sign into Metro and select your store in the live browser, if needed.
-3. Click **Click to talk**, allow the microphone, and speak. Speech is transcribed by Chrome; the completed utterance is submitted automatically. Type instead if speech is unavailable.
-4. Watch Orbit work. **Take over** waits for an in-flight action to finish and pauses the agent. Handle login, CAPTCHA, or store selection, then click **Resume**. You can type a clarification while paused.
-5. **Stop** stops the task. **End session** releases the Steel browser and saves its profile. Wait for Steel to finish saving before reconnecting.
+## Watch Orbit work
 
-Clicking **Open view** while paused opens the same Steel session in another tab if the embedded view is too small. Keep that URL private. Close the separate viewer before resuming to avoid competing inputs.
+Choose **Watch Orbit explore** in the floating panel. The themed workspace shows the practice browser, current guidance, actual remote filenames and an on-demand screenshot. A new question from this linked workspace goes to the website tab that opened it. Stop or pause a current question before starting another.
 
-## Cost controls
+The UI distinguishes:
 
-- Model: **gpt-5.6-luna**, reasoning disabled, 450 output-token limit per decision.
-- Standard published rates checked September 12, 2026: $0.20/M input and $1.20/M output. The local meter conservatively charges all input at $0.25/M to allow for cache-write pricing.
-- Maximum **18 decisions** and **$0.08** per task, including resumed tasks.
-- Maximum **$1.80** in tracked app-wide OpenAI usage. Every request reserves an upper estimate before it is sent. Successful responses reconcile against returned token counts; failed or interrupted calls retain their reservation. No automatic API retries or model upgrades.
-- The ledger lives in `.orbit/budget.json` and survives restarts. Keep it intact. It cannot track usage from other apps or infer your actual OpenAI balance. Prices are fixed in code, not fetched dynamically.
-- Microphone transcription and spoken responses use browser services; no OpenAI audio or Realtime API calls are made. Chrome speech recognition may send audio to Google's service and may need internet access.
-- Steel browser time and any other Steel services are separate from the $1.80 OpenAI cap. Proxy and CAPTCHA solving are not enabled by default.
+- **Navigation rehearsed:** public navigation happened in the separate browser. This does not certify the user's outcome.
+- **Public page inspected:** evidence exists, but the action was not rehearsed.
+- **Guidance from your current page:** the separate browser could not inspect the page, for example because of login, private hosting or a load failure. Orbit does not claim rehearsal.
 
-For illustration, 10,000 input tokens and 1,000 output tokens cost about $0.0032 at standard Luna rates. This is an estimate, not a measured Metro run.
+The practice viewer is for observation. Follow the highlights in your own website tab.
 
-## Implementation and limitations
+## Computer workspace
 
-`server/index.mjs` runs a loopback-only HTTP service. `server/browser.mjs` creates/reuses Steel profiles, connects Playwright over CDP, produces compact DOM observations, and executes a fixed list of browser actions. `server/planner.mjs` asks Luna for strict JSON decisions. The extension never receives an API key. No model-generated JavaScript is executed.
+Each task uses `/tmp/orbit-agent/missions/<run-id>/` on Steel Computer:
 
-This is an early prototype, not a guarantee of Metro checkout compatibility. Live Metro can require login, a selected store, a CAPTCHA, or site-specific adaptations. Text observations cannot inspect cross-origin iframe contents or complex canvas interfaces; those require human takeover. Navigation is limited to Metro domains, so an external identity provider may require additional integration. The model verifies completion from page observations; ambiguous outcomes need human review. Checkout is excluded. After any uncertain add-to-cart result, inspect the cart before running the task again.
+```text
+state.json          Browser handle, phase, count and latest evidence filename
+events.jsonl        Actual observation/rehearsal/guidance events
+observation.json    Latest public-browser snapshot
+site-map.json       Observed pages and verified public navigation transitions
+guidance.json       Most recent structured instruction
+progress.json       Recent user interaction history
+evidence-N.png      Public-browser screenshots
+```
 
-The app is intended for one trusted local user. Do not deploy it publicly without real user authentication and tenant isolation. Chrome sends microphone audio to its speech service; the server sends task text and visible page text to OpenAI. Steel hosts and can record the browser. Browser profiles and live viewer URLs are sensitive.
+These files persist on that computer's filesystem between invocations. They are not a durable backup across VM deletion or loss of /tmp. The local coordinator still owns active-run state and cost tracking; a server restart currently requires a new question. This prototype does not claim detached learning or full crash recovery.
 
-## Checks
+| Component | Responsibility |
+|---|---|
+| Extension | Observe learner's page, highlight, detect user interaction |
+| Local Node server | Pairing, budgets, validation, task lifecycle, UI |
+| Steel Computer | Playwright/CDP client, public inspection, bounded rehearsal, model calls, evidence and progress files |
+| Steel Browser | Isolated public practice website and live viewer |
+| OpenAI | Select one next user action from learner's page and public evidence |
+
+Primary files: server/index.mjs, server/computer.mjs, server/tutor-runtime.py, server/planner.mjs, extension/background.js, extension/guidance.js, extension/page-tools.js and extension/overlay.js.
+
+Former autonomous browser helpers remain in server/browser.mjs and actOnPage for fixture coverage, but the tutor extension does not import or call the executor. The public run API no longer starts autonomous shopping.
+
+## Boundaries and costs
+
+- $1.80 tracked OpenAI total, $0.25 per task, 60 non-wait decisions. Fixed code rates, not a live account balance. Keep the .orbit/budget.json ledger when moving installations.
+- Every request reserves cost before sending; ambiguous errors retain their reservation.
+- Steel Computer: 1 vCPU, 512 MiB, one-hour maximum, 15-minute idle pause. Browsers expire after 15 minutes and are released on completion or Stop. Shutdown also pauses the computer.
+- Login, passwords, payment data and final sensitive steps require the user. Some embedded/custom controls and browser-internal pages are unsupported.
+- Visible page text goes to Steel Computer and OpenAI; public screenshots and guidance are saved on the computer. The snapshot is not complete personal-data anonymization.
+- Chrome speech recognition may send audio to its speech provider. When the ElevenLabs voice is selected, spoken reply text is sent to ElevenLabs for text-to-speech. Keys stay out of the extension; the local server makes the ElevenLabs request.
+- Single trusted local user, one active question. Do not expose the loopback server publicly.
+
+## Verification
 
 ```sh
 npm test
-TEST_CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm test
+# Include browser fixture tests:
+TEST_CHROME_PATH="/path/to/chrome" npm test
 ```
 
-The second command also tests real DOM extraction and actions against a local store fixture. Tests mock the model API and do not spend credits or contact Metro. End-to-end voice and live Steel/Metro testing require your keys and microphone interaction.
+On PowerShell set $env:TEST_CHROME_PATH before npm test.
 
-Verified during setup: all 9 automated checks passed; desktop and mobile layouts passed; the actual Steel browser connected and Luna searched Metro for egg options. That read-only live task used approximately $0.002 on the conservative OpenAI meter. No groceries were added during the live test. Actual microphone recognition and your account's add-to-cart flow still need an interactive trial. Chrome blocked automated access to its extension-management page, so loading the unpacked toolbar extension is a manual step.
+tests/tutor.test.mjs verifies highlights never click/type, user interactions advance, wrong clicks reobserve, pause cleanup, sensitive-field rejection, remote transport and desktop/mobile rendering. Screenshots use synthetic fixtures.
 
-## References
+An explicit **Steel-billed, no-OpenAI** check is available:
 
-- [Luna model and pricing](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
-- [Steel session configuration](https://docs.steel.dev/overview/sessions-api/configuration)
-- [Steel live viewer](https://docs.steel.dev/overview/sessions-api/embed-sessions/live-sessions)
-- [Steel profiles](https://docs.steel.dev/overview/profiles-api/overview)
-- [Chrome SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)
+```sh
+node --env-file=.env.local tests/steel-tutor-smoke.mjs --live
+```
+
+It provisions a test computer, inspects example.com with remote Playwright, checks files, releases the browser and pauses the computer. A fixture test is not a live Steel or end-to-end model run.

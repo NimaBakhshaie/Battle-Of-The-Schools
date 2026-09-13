@@ -1,6 +1,9 @@
-import { snapshotPage, actOnPage } from './page-tools.js';
+import { snapshotPage } from './page-tools.js';
+import { showGuidance, clearGuidance } from './guidance.js';
 const SERVER = 'http://127.0.0.1:4318';
-let looping = false, preparing = false;
+let looping = false, preparing = false, acknowledging = false;
+let offscreenCreating = null;
+let speechClaimQueue = Promise.resolve();
 const isWebUrl = value => { try { const u = new URL(value); return ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password; } catch { return false; } };
 async function request(endpoint, body = {}) {
   const { token } = await chrome.storage.local.get('token');
@@ -32,11 +35,53 @@ async function notify(tabId, state, error) {
 }
 async function control() { return (await chrome.storage.session.get('control')).control; }
 async function setControl(value) { await chrome.storage.session.set({ control: value }); }
+async function clearTab(tabId) {
+  await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: clearGuidance }).catch(() => {});
+}
+async function offscreenReady() {
+  const url = chrome.runtime.getURL('offscreen.html');
+  const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls: [url] });
+  if (contexts.length) return;
+  offscreenCreating ||= chrome.offscreen.createDocument({ url: 'offscreen.html', reasons: ['AUDIO_PLAYBACK'], justification: 'Play Orbit voice guidance without opening a window or requesting local-device access from websites.' }).finally(() => { offscreenCreating = null; });
+  await offscreenCreating;
+}
+async function offscreenExists() {
+  const url = chrome.runtime.getURL('offscreen.html');
+  return (await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls: [url] })).length > 0;
+}
+async function cancelOffscreenSpeech() {
+  if (await offscreenExists()) await chrome.runtime.sendMessage({ target: 'orbit-offscreen', type: 'CANCEL_SPEECH' }).catch(() => {});
+}
+async function claimSpeech(id) {
+  let claimed = false;
+  const check = speechClaimQueue.then(async () => {
+    const { lastOrbitSpeech } = await chrome.storage.session.get('lastOrbitSpeech');
+    const now = Date.now();
+    claimed = lastOrbitSpeech?.id !== id || now - Number(lastOrbitSpeech.at || 0) > 120000;
+    if (claimed) await chrome.storage.session.set({ lastOrbitSpeech: { id, at: now } });
+  });
+  speechClaimQueue = check.catch(() => {});
+  await check;
+  return claimed;
+}
+async function acknowledge(active, ok) {
+  if (acknowledging) return;
+  acknowledging = true;
+  try {
+  const current = await control();
+  if (current?.status !== 'running' || !current.pending || current.pending.id !== active.pending?.id) return;
+  await setControl({ ...current, pending: null });
+  await clearTab(current.tabId);
+  const updated = await request('result', { runId: current.runId, actionId: active.pending.id, ok });
+  await notify(current.tabId, updated);
+  runLoop();
+  } finally { acknowledging = false; }
+}
 async function runLoop() {
   if (looping) return; looping = true;
   let active;
   try {
-    while ((active = await control())?.status === 'running') {
+    while ((active = await control())?.status === 'running' && !active.pending) {
       const frames = await chrome.scripting.executeScript({ target: { tabId: active.tabId, allFrames: true }, func: snapshotPage });
       const usable = frames.filter(f => f.result && isWebUrl(f.result.url));
       const top = usable.find(f => f.frameId === 0) || usable[0];
@@ -55,28 +100,26 @@ async function runLoop() {
       const latest = await control();
       if (latest?.status !== 'running' || latest.runId !== active.runId) break;
       const action = response.action;
-      let ok = false;
-      try {
-        if (action.action === 'navigate') {
-          if (!isWebUrl(action.value) || /checkout|place.order|paiement/i.test(action.value)) throw new Error('Unsupported destination.');
-          await chrome.tabs.update(active.tabId, { url: action.value });
-          for (let i = 0; i < 80; i++) { const tab = await chrome.tabs.get(active.tabId); if (tab.status === 'complete') break; await new Promise(resolve => setTimeout(resolve, 250)); }
-          await inject(active.tabId); ok = true;
-        } else {
-          if (!isWebUrl(frame.result.url)) throw new Error('Open an ordinary website to use Orbit.');
-          const chosen = targets.get(action.target);
-          const destination = chosen?.frame || top;
-          const localAction = chosen ? { ...action, target: chosen.localId } : action;
-          const [result] = await chrome.scripting.executeScript({ target: { tabId: active.tabId, frameIds: [destination.frameId] }, func: actOnPage, args: [{ action: localAction, observation: destination.result }] });
-          ok = result.result?.ok === true;
-        }
-      } catch { ok = false; }
-      const updated = await request('result', { runId: active.runId, actionId: action.id, ok });
-      await notify(active.tabId, updated);
-      await new Promise(resolve => setTimeout(resolve, action.action === 'wait' ? 2500 : 1200));
+      if (action.action === 'wait') {
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        await request('result', { runId: active.runId, actionId: action.id, ok: true });
+        continue;
+      }
+      const chosen = targets.get(action.target);
+      const destination = chosen?.frame || top;
+      const localAction = chosen ? { ...action, target: chosen.localId } : action;
+      await setControl({ ...latest, pending: { id: action.id, frameId: destination.frameId } });
+      const [result] = await chrome.scripting.executeScript({ target: { tabId: active.tabId, frameIds: [destination.frameId] }, func: showGuidance, args: [{ action: localAction, observation: destination.result, runId: active.runId }] });
+      if ((await control())?.status !== 'running') { await clearTab(active.tabId); break; }
+      if (!result.result?.ok) throw new Error('The highlighted control changed. Say “Hello Orbit, resume” to take another look.');
+      break; // No polling or paid decisions while the learner considers the highlighted step.
     }
   } catch (error) {
-    if (active) { await setControl({ ...active, status: 'paused' }); await request('pause', { runId: active.runId }).catch(() => {}); await notify(active.tabId, null, error.message); }
+    if (active) {
+      await setControl({ ...active, status: 'paused' });
+      const pausedState = await request('pause', { runId: active.runId }).catch(() => null);
+      await notify(active.tabId, pausedState, error.message);
+    }
   } finally { looping = false; }
 }
 chrome.action.onClicked.addListener(async tab => {
@@ -84,60 +127,119 @@ chrome.action.onClicked.addListener(async tab => {
   catch { await chrome.tabs.create({ url: `${SERVER}/?pair=${chrome.runtime.id}` }); }
 });
 chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+  if (info.status === 'loading') {
+    const active = await control();
+    if (active?.tabId === tabId) await cancelOffscreenSpeech();
+    return;
+  }
   if (info.status !== 'complete') return;
   const active = await control();
-  if (active?.tabId === tabId) { await inject(tabId).catch(() => {}); if (active.status === 'running') runLoop(); }
+  if (active?.tabId === tabId) {
+    await inject(tabId).catch(() => {});
+    if (active.status === 'running') {
+      if (active.pending) await acknowledge(active, false).catch(() => {});
+      else runLoop();
+    }
+  }
 });
 chrome.tabs.onRemoved.addListener(async tabId => {
   await chrome.storage.session.remove(`memory:${tabId}`);
   const active = await control();
   if (active?.tabId === tabId) { await setControl({ ...active, status: 'stopped' }); await request('stop', { runId: active.runId }).catch(() => {}); }
 });
+async function startTutor(tabId, message) {
+  const existingControl = await control();
+  if (preparing || looping || existingControl?.status === 'running') throw new Error('Pause or stop the current question first.');
+  const tab = await chrome.tabs.get(tabId);
+  if (!isWebUrl(tab.url) || tab.url.startsWith(SERVER)) throw new Error('Open Orbit on the website you want to learn first.');
+  preparing = true;
+  try {
+    await notify(tabId, null, 'Starting your agent on Steel Computer…');
+    const serverState = await request('state');
+    if (['running', 'paused', 'waiting'].includes(serverState.run?.status)) {
+      await request('stop', { runId: serverState.run.id });
+    }
+    await request('connect');
+    const saved = (await chrome.storage.session.get(`memory:${tabId}`))[`memory:${tabId}`] || [];
+    const url = new URL(tab.url);
+    const memory = saved.filter(item => item.page === url.origin + url.pathname);
+    const state = await request('start', { task: message.task, modelMode: message.modelMode, memory });
+    await remember(tabId, state);
+    await setControl({ tabId, runId: state.run.id, status: 'running', page: tab.url });
+    runLoop(); return { state };
+  } finally { preparing = false; }
+}
 chrome.runtime.onMessageExternal.addListener((message, sender, reply) => {
   if (sender.url?.startsWith(`${SERVER}/`) && message.type === 'ORBIT_PAIR' && /^[a-f0-9]{64}$/.test(message.token || '')) {
     chrome.storage.local.set({ token: message.token }).then(() => reply({ ok: true })); return true;
+  }
+  if (sender.url?.startsWith(`${SERVER}/`) && message.type === 'ORBIT_GET_PREFERENCES') {
+    chrome.storage.local.get(['modelMode', 'voiceURI']).then(reply, error => reply({error:error.message})); return true;
+  }
+  if (sender.url?.startsWith(`${SERVER}/`) && message.type === 'ORBIT_SET_PREFERENCES') {
+    if (!['dynamic','low','high'].includes(message.modelMode) || typeof message.voiceURI !== 'string' || message.voiceURI.length > 500) { reply({error:'Invalid model or voice.'}); return; }
+    chrome.storage.local.set({modelMode:message.modelMode,voiceURI:message.voiceURI}).then(() => reply({ok:true}), error => reply({error:error.message})); return true;
   }
 });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (!sender.tab || !message.type?.startsWith('ORBIT_')) return;
   (async () => {
     const tabId = sender.tab.id;
-    if (message.type === 'ORBIT_SETUP') { await chrome.tabs.create({ url: `${SERVER}/?pair=${chrome.runtime.id}` }); return { ok: true }; }
+    if (message.type === 'ORBIT_SETUP') { if (!sender.tab.url.startsWith(SERVER)) await chrome.storage.session.set({ learningTab: tabId }); await chrome.tabs.create({ url: `${SERVER}/?pair=${chrome.runtime.id}` }); return { ok: true }; }
+    if (message.type === 'ORBIT_GUIDE_RESULT') {
+      const active = await control();
+      if (active?.status !== 'running' || active.tabId !== tabId || active.runId !== message.runId || active.pending?.id !== message.actionId || active.pending.frameId !== sender.frameId) return { ok: false };
+      await acknowledge(active, message.ok === true); return { ok: true };
+    }
     if (message.type === 'ORBIT_STATUS') {
       const { token } = await chrome.storage.local.get('token');
       if (!token) return { paired: false };
       const state = await request('state');
       const active = await control();
+      if (active?.tabId === tabId && (state.run?.id !== active.runId || state.run?.status !== 'running')) {
+        await clearTab(tabId);
+        await setControl({ ...active, status: state.run?.id === active.runId ? state.run.status : 'stopped', pending: null });
+      }
       const selected = active?.tabId === tabId && active.runId === state.run?.id && (active.status === 'running' || active.page === sender.tab.url);
       return { paired: true, state: selected ? state : { ...state, run: null }, selected };
     }
     if (message.type === 'ORBIT_START') {
-      if (preparing || looping) throw new Error('An agent task is already running.');
-      preparing = true;
-      try {
-        await notify(tabId, null, 'Starting your agent on Steel Computer…');
-        await request('connect');
-        const savedMemory = (await chrome.storage.session.get(`memory:${tabId}`))[`memory:${tabId}`] || [];
-        const url = new URL(sender.tab.url);
-        const memory = savedMemory.filter(item => item.page === url.origin + url.pathname);
-        const state = await request('start', { task: message.task, modelMode: message.modelMode, memory });
-        await remember(tabId, state);
-        await setControl({ tabId, runId: state.run.id, status: 'running', page: sender.tab.url });
-        runLoop(); return { state };
-      } finally { preparing = false; }
+      return startTutor(tabId, message);
+    }
+    if (message.type === 'ORBIT_CLAIM_SPEECH') {
+      const speechId = typeof message.speechId === 'string' ? message.speechId : '';
+      if (!speechId || speechId.length > 1200) throw new Error('Invalid speech identifier.');
+      return { claimed: await claimSpeech(speechId) };
+    }
+    if (message.type === 'ORBIT_SPEAK') {
+      const source = new URL(sender.url || sender.tab.url);
+      if (['http://127.0.0.1:4318', 'http://localhost:4318'].includes(source.origin)) return { ok: false, error: 'The Orbit settings page does not speak.' };
+      const text = typeof message.text === 'string' ? message.text.trim() : '';
+      if (!text || text.length > 1000) throw new Error('Voice text must be between 1 and 1,000 characters.');
+      const { token } = await chrome.storage.local.get('token');
+      if (!token) throw new Error('Connect Orbit once before using the ElevenLabs voice.');
+      await offscreenReady();
+      const result = await chrome.runtime.sendMessage({ target: 'orbit-offscreen', type: 'PLAY_SPEECH', text, token });
+      if (result?.error) throw new Error(result.error);
+      return { ok: true };
+    }
+    if (message.type === 'ORBIT_CANCEL_SPEECH') {
+      await cancelOffscreenSpeech();
+      return { ok: true };
     }
     const active = await control();
     if (!active || active.tabId !== tabId) throw new Error('This tab has no active task.');
     if (message.type === 'ORBIT_PAUSE' || message.type === 'ORBIT_STOP') {
       const status = message.type === 'ORBIT_STOP' ? 'stopped' : 'paused';
       await setControl({ ...active, status });
+      await clearTab(tabId);
       const state = await request(status === 'stopped' ? 'stop' : 'pause', { runId: active.runId }); return { state };
     }
     if (message.type === 'ORBIT_RESUME') {
-      if (looping) throw new Error('The last action is finishing. Resume again in a moment.');
+      if (looping) throw new Error('The last action is finishing. Say “Hello Orbit, resume” again in a moment.');
       await request('connect');
       const state = await request('resume', { runId: active.runId, answer: message.answer || '' });
-      await setControl({ ...active, status: 'running' }); runLoop(); return { state };
+      await setControl({ ...active, status: 'running', pending: null }); runLoop(); return { state };
     }
     throw new Error('Unknown extension request.');
   })().then(reply, error => reply({ error: error.message }));

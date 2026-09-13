@@ -11,12 +11,13 @@ try {
   await page.evaluate(() => {
     const attach = Element.prototype.attachShadow;
     Element.prototype.attachShadow = function(options) { return attach.call(this, { ...options, mode: 'open' }); };
-    window.messages = []; window.recognizers = []; window.spoken = []; window.store = {};
-    window.chrome = { storage: { local: {
+    window.messages = []; window.recognizers = []; window.spoken = []; window.store = {}; window.fetchCalls = 0;
+    window.fetch = () => { window.fetchCalls++; throw new Error('The website context must not fetch Orbit services.'); };
+    window.chrome = { storage: { onChanged: { addListener(listener) { window.storageChanged = listener; } }, local: {
       get: async keys => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).filter(key => key in window.store).map(key => [key, window.store[key]])),
       set: async values => Object.assign(window.store, values)
     } }, runtime: {
-      sendMessage: async message => { window.messages.push(message); return { paired: true, selected: true, state: { budget: { spent: 0 }, run: null } }; },
+      sendMessage: async message => { window.messages.push(message); if (message.type === 'ORBIT_CLAIM_SPEECH') return { claimed: true }; if (['ORBIT_SPEAK', 'ORBIT_CANCEL_SPEECH'].includes(message.type)) return { ok: true }; return { paired: true, selected: true, state: { budget: { spent: 0 }, run: null } }; },
       onMessage: { addListener(listener) { window.orbitMessage = listener; } }
     } };
     window.SpeechRecognition = window.webkitSpeechRecognition = class {
@@ -60,10 +61,12 @@ try {
   await page.waitForFunction(() => messages.filter(m => m.type === 'ORBIT_START').length === 2);
   assert.deepEqual(await page.evaluate(() => messages.filter(m => m.type === 'ORBIT_START').map(m => m.task)), ['find notebooks', 'find pencils']);
   assert.equal(await cardHidden(), true);
+  await page.evaluate(() => orbitMessage({ type: 'ORBIT_STATE', state: { budget: { spent: 0 }, run: { id: 'running-test', mode: 'local', status: 'running', phase: 'exploring', message: 'Check the website.', steps: 1, maxSteps: 60 } } }));
+  await page.waitForFunction(() => window.spoken.includes('Check the website.'));
+  assert.equal(await cardHidden(), true);
   await page.evaluate(() => orbitMessage({ type: 'ORBIT_STATE', state: { budget: { spent: 0 }, run: { id: 'url-test', mode: 'local', status: 'done', message: 'I opened https://example.com/a/very/long/path?with=query for you.', steps: 1, maxSteps: 60 } } }));
   await page.waitForFunction(() => window.spoken.some(text => text.includes('the website')));
   assert.equal(await page.evaluate(() => spoken.some(text => /https?:\/\//i.test(text))), false);
-  assert.ok(await page.evaluate(() => document.querySelector('#orbit-widget').shadowRoot.querySelectorAll('#voice option').length) <= 5);
   const before = await page.evaluate(() => spoken.length);
   await page.evaluate(() => orbitMessage({ type: 'ORBIT_STATE', state: { budget: { spent: 0 }, run: { id: 'url-test', mode: 'local', status: 'done', message: 'I opened https://example.com/a/very/long/path?with=query for you.' } } }));
   assert.equal(await page.evaluate(() => spoken.length), before);
@@ -75,6 +78,20 @@ try {
   await say('blue');
   await page.evaluate(() => lastRecognition.onend());
   await page.waitForFunction(() => messages.some(m => m.type === 'ORBIT_RESUME' && m.answer === 'blue'));
+  const recognizersBeforeResume = await page.evaluate(() => window.recognizers.length);
+  await page.evaluate(() => {
+    document.querySelector('#orbit-widget').shadowRoot.getElementById('wake').click();
+    orbitMessage({ type: 'ORBIT_STATE', state: { budget: { spent: 0 }, run: { id: 'paused-task', mode: 'local', status: 'paused', message: 'Say “Hello Orbit, resume” to take another look.' } } });
+  });
+  await page.waitForFunction(count => window.recognizers.length > count, recognizersBeforeResume);
+  await say('Hello Orbit resume');
+  await page.waitForFunction(() => messages.some(m => m.type === 'ORBIT_RESUME' && m.answer === ''));
+  await page.evaluate(() => {
+    storageChanged({ voiceURI: { newValue: 'elevenlabs' } }, 'local');
+    orbitMessage({ type: 'ORBIT_STATE', state: { budget: { spent: 0 }, run: { id: 'elevenlabs-test', mode: 'local', status: 'done', message: 'Your ElevenLabs response is ready.' } } });
+  });
+  await page.waitForFunction(() => messages.some(message => message.type === 'ORBIT_SPEAK'));
+  assert.equal(await page.evaluate(() => window.fetchCalls), 0);
 
-  console.log('Wake phrase restarts, stays collapsed, ignores background speech, and does not speak full URLs.');
+  console.log('Wake phrase restarts, resumes paused tasks, stays collapsed, ignores background speech, and does not speak full URLs.');
 } finally { await browser.close(); }

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Budget, TOTAL_LIMIT, RUN_LIMIT, MODEL, cost } from '../server/budget.mjs';
-import { plan } from '../server/planner.mjs';
+import { normalizeActionMessage, plan } from '../server/planner.mjs';
 import { allowedUrl, checkoutPattern } from '../server/browser.mjs';
 
 function fixture(t) {
@@ -57,6 +57,19 @@ test('model cannot choose arbitrary code or unlisted actions', async t => {
   await assert.rejects(plan({ key: 'test-key', task: 'Find eggs', observation: {}, history: [], budget, run, signal: new AbortController().signal,
     fetcher: async () => Response.json({ choices: [{ finish_reason: 'stop', message: { content: '{"action":"eval","target":0,"value":"code","message":"hello"}' } }] })
   }), /Unexpected model action/);
+});
+test('tutor action wording addresses the user instead of narrating Orbit work', async t => {
+  const { budget, run } = fixture(t); run.tutor = true;
+  const action = await plan({ key: 'test-key', task: 'Find pencils', observation: {}, history: [], budget, run, signal: new AbortController().signal,
+    fetcher: async () => Response.json({ usage: { prompt_tokens: 10, completion_tokens: 10 }, choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ action: 'fill', target: 2, value: 'pencils', message: 'Searching for pencils will show matching products.' }) } }] })
+  });
+  assert.equal(action.message, 'First, search for pencils will show matching products.');
+});
+test('first-person tutor instructions are deterministically rewritten for the user', () => {
+  assert.equal(normalizeActionMessage({ action: 'click', value: '', message: 'I’ll open the official eligibility checker so you can see the renewal requirements.' }), 'First, open the official eligibility checker so you can see the renewal requirements.');
+  assert.equal(normalizeActionMessage({ action: 'fill', value: 'passport renewal', message: "I will type passport renewal into the search box." }, 1), 'Next, type passport renewal into the search box.');
+  assert.equal(normalizeActionMessage({ action: 'navigate', value: 'https://example.com', message: 'Opening the official website.' }, 2), 'Next, open the official website.');
+  assert.equal(normalizeActionMessage({ action: 'click', value: '', message: 'Click Continue and I’ll show you the next page.' }, 3), 'Next, click the highlighted control to continue.');
 });
 test('ordinary web destinations are accepted; privileged schemes and credentials are rejected', () => {
   for (const url of ['https://www.metro.ca/en', 'https://www.staples.ca', 'https://www.google.com/search?q=school', 'http://example.com']) assert.equal(allowedUrl(url), true);

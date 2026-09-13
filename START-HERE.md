@@ -1,16 +1,14 @@
-# Start Orbit manually
+# Try Orbit's tutor
 
-1. In Finder, open this project folder and double-click **Start Orbit.command**. Keep its Terminal window open. If Orbit is already running, skip this step.
-2. Open Chrome. After code updates, open `chrome://extensions` and click Reload on Orbit, then refresh your website.
-3. On an ordinary website, click Orbit in Chrome's extensions menu. If asked to connect, follow the local pairing screen.
-4. Send your task. Orbit starts Steel Computer automatically. Send starts a new task; Resume continues the previous task.
-5. To stop the local server, press Control+C in its Terminal window.
+1. Run npm install and npm start (Node 22+).
+2. Open http://127.0.0.1:4318 and save your OpenAI and Steel Computer-enabled keys.
+3. Load the extension folder as an unpacked Chrome extension. If already installed, reload it and refresh your website.
+4. Click Orbit on an ordinary website. Use Connect Orbit to pair once.
+5. Ask “Show me how to search this website.” Initial remote tool installation can take a few minutes.
+6. Follow the purple highlight. YOU click and type; Orbit observes progress and identifies the next step.
+7. Choose Watch Orbit explore to see the separate Steel Browser and remote evidence workspace.
+8. Stop releases the practice browser. Pause removes the highlight; Resume rereads the page.
 
-If double-click does not launch it, open Terminal and run:
+For a demo, use a public search/catalogue website. Logged-in content is not copied into the practice browser. The UI states when guidance could not be rehearsed. Credentials, payments and final submissions are not automated.
 
-```sh
-cd '/Users/arushgupta/Documents/ChatGPT/Battle of The School'
-zsh 'Start Orbit.command'
-```
-
-Deleted Steel computer IDs are now replaced automatically on connection. New computers pause after 15 minutes idle, with a one-hour maximum running window. Steel compute is billed separately from OpenAI. Do not delete a computer while a task is running. If Steel's service returns a gateway error, a local restart cannot guarantee that its service will recover.
+The lavender theme, voice orb and floating panel remain. The interaction is now tutoring rather than autonomous clicking. See README.md for architecture, costs and limitations.

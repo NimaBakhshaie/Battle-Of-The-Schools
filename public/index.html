@@ -2,44 +2,34 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Orbit · Your voice, in motion</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css">
+  <title>Orbit · Learn the web, your way</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/tutor.css">
 </head>
-<body>
+<body class="landing-mode">
   <header class="topbar">
     <a class="brand" href="/" aria-label="Orbit home"><span class="brand-mark">◉</span>orbit<span class="beta">EARLY ACCESS</span></a>
-    <div class="top-actions"><span class="connection"><i id="connectionDot"></i><span id="connectionLabel">Local workspace</span></span><button id="settingsButton" class="icon-button" aria-label="Open settings">⚙</button></div>
+    <div class="top-actions"><span class="connection"><i id="connectionDot"></i><span id="connectionLabel">Local connection</span></span><button id="settingsButton" class="icon-button" aria-label="Open settings">⚙ <span>Settings</span></button></div>
   </header>
-  <main>
-    <section class="intro"><div><p class="eyebrow">YOUR VOICE. IN MOTION.</p><h1>A little help. <span>A lot less clicking.</span></h1></div><div class="budget"><span class="budget-label">OPENAI BUDGET <span title="Conservative local estimate. Includes reserved requests, excludes Steel and other apps.">ⓘ</span></span><div><strong id="spend">$0.00</strong><span> / $1.80</span><span class="model-label">Luna</span></div><div class="budget-track"><span id="budgetBar"></span></div></div></section>
-    <div id="setupBanner" class="setup-banner" hidden><span><b>Make yourself at home.</b> Add your keys once to connect Orbit.</span><button id="setupButton">Set up Orbit <span>↗</span></button></div>
-    <div id="pairBanner" class="setup-banner" hidden><span><b>Use Orbit in your current tab.</b> Pair the extension with this local server.</span><button id="pairButton">Pair extension ↗</button></div>
-    <div class="workspace">
-      <aside class="assistant-panel">
-        <div class="panel-label"><span><i class="spark">✳</i> YOUR ASSISTANT</span><span id="statePill" class="state-pill">Ready</span></div>
-        <div class="orb-area"><canvas id="orb" aria-label="Animated voice orb"></canvas><div class="orb-caption"><span id="orbTitle">Go on, ask me.</span><small id="orbSubtitle">The web is better with a little company.</small></div></div>
-        <div class="command-area">
-          <button id="micButton" class="mic-button" aria-label="Start listening"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg><span id="micLabel">Click to talk</span><kbd>⌥ Space</kbd></button>
-          <form id="commandForm" class="command-form"><label class="sr-only" for="command">Tell Orbit what to do</label><textarea id="command" rows="2" maxlength="1500" placeholder="Or type what you need…"></textarea><button id="sendButton" type="submit" aria-label="Send command">↑</button></form>
-          <button id="exampleButton" class="example"><span>↗</span> “Go to Metro and add eggs to my cart”</button>
-          <div class="voice-note">Push-to-talk · Browser speech · No OpenAI audio fees</div>
-        </div>
-        <div class="activity-section"><div class="section-label"><span>ACTIVITY</span><button id="soundButton" aria-pressed="true">Voice on</button></div><div id="activity" class="activity"><div class="activity-empty"><span>✧</span><p>A thought becomes a task.<br>Follow every step right here.</p></div></div></div>
-        <div class="assistant-footer"><span class="mini-orb"></span> Powered by Steel + GPT-5.6 Luna</div>
-      </aside>
-      <section class="browser-panel" aria-label="Live browser">
-        <div class="browser-toolbar"><div class="window-dots"><i></i><i></i><i></i></div><div class="address"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="8" width="10" height="8" rx="2"/><path d="M7 8V5a3 3 0 0 1 6 0v3"/></svg><span id="addressLabel">Your own cloud browser</span></div><span class="live-tag"><i></i> LIVE VIEW</span></div>
-        <div class="browser-stage">
-          <div id="browserEmpty" class="browser-empty"><div class="empty-art"><div class="mini-window"><div><i></i><i></i><i></i></div><span class="mini-search"></span><section><span></span><span></span><span></span></section></div><span class="floating-pointer">↖</span><span class="floating-star">✳</span><span class="art-ring"></span></div><p class="eyebrow">LESS DOING. MORE DONE.</p><h2>Your browser,<br>with a copilot.</h2><p>Say the word. Watch Orbit find its way,<br>one click at a time.</p><button id="connectButton" class="primary">Connect browser <span>↗</span></button><small>Start with Metro · Sign in once · Stay in control</small></div>
-          <iframe id="viewer" title="Live Steel browser session" allow="clipboard-read; clipboard-write; autoplay; fullscreen" referrerpolicy="no-referrer" hidden></iframe>
-          <div id="interactionShield" class="interaction-shield" hidden><button id="shieldPause">Orbit is working · Take over to interact</button></div>
-        </div>
-        <div class="browser-footer"><div><span class="status-light" id="browserLight"></span><span id="browserStatus">Ready when you are</span></div><div class="browser-controls"><a id="externalViewer" href="#" target="_blank" rel="noreferrer" hidden>Open view ↗</a><button id="takeoverButton" hidden>Take over</button><button id="resumeButton" hidden>Resume ↗</button><button id="stopButton" hidden>Stop</button><button id="endButton" hidden>End session</button></div></div>
-      </section>
+  <section class="orbit-landing" aria-label="Welcome to Orbit">
+    <div class="hero-intro"><p class="eyebrow">A LITTLE GUIDANCE. A WORLD OF POSSIBILITY.</p><p>The web, with you at the centre.</p></div>
+    <div class="orbit-scene" aria-label="Example questions orbiting the Orbit logo">
+      <div class="orbit-path" aria-hidden="true"></div>
+      <div class="hero-orb"><span class="fluid-orb" aria-hidden="true"><i></i><i></i><i></i></span><h1>orbit</h1></div>
+      <span class="prompt-ribbon">How do I book a hotel? <span>↗</span></span>
+      <span class="prompt-ribbon">Help me find the perfect gift. <span>✧</span></span>
+      <span class="prompt-ribbon">How do I apply for a job? <span>↗</span></span>
+      <span class="prompt-ribbon">Show me how to get there. <span>✧</span></span>
+      <span class="prompt-ribbon">Help me plan a weekend away. <span>↗</span></span>
+      <span class="prompt-ribbon">Where do I start? <span>✧</span></span>
     </div>
-    <footer class="page-footer"><span>Built for the little things that take too long.</span><span>Metro prototype <span>·</span> Adds to cart; you handle checkout</span></footer>
-  </main>
+    <div class="hero-caption"><span class="tiny-star">✳</span><h2>A little less lost.<br>A lot more possible.</h2><p>Open the Orbit extension on any website.<br>Ask a question. Find your way, one step at a time.</p></div>
+    <div class="corner-info"><button id="aboutButton" class="corner-link">ⓘ &nbsp; Get to know Orbit</button><span>Your pace. Your progress.</span></div>
+    <div class="corner-tools"><button id="motionButton" class="corner-link" aria-pressed="false">Ⅱ &nbsp; Pause motion</button></div>
+    <div id="landingNotice" role="status" hidden></div>
+  </section>
+
+  <dialog id="aboutOrbit"><div class="dialog-heading"><div><p class="eyebrow">MEET YOUR GUIDE</p><h2>A little company for the web.</h2></div><button id="closeAbout" class="icon-button" aria-label="Close information">×</button></div><p>Orbit helps you find your way around a website. Open the extension, type or speak your question, and follow the purple highlights in your tab.</p><p>You stay in control, with guidance at every step. Ask questions and follow every step directly in the extension.</p><div class="settings-info"><b>Your usage</b><p id="landingBudget">Loading usage…</p></div></dialog>
   <div id="toast" role="status" hidden></div>
-  <dialog id="settings"><form id="settingsForm"><div class="dialog-heading"><div><p class="eyebrow">LET’S GET ACQUAINTED</p><h2>Connect your keys.</h2></div><button id="closeSettings" type="button" class="icon-button" aria-label="Close settings">×</button></div><p>Your keys stay in <code>.env.local</code> on this computer. They are never sent to the extension or stored in your browser.</p><label for="openaiKey">OpenAI API key <span id="openaiStatus"></span></label><input id="openaiKey" type="password" autocomplete="off" placeholder="sk-…" spellcheck="false"><label for="steelKey">Steel API key <span id="steelStatus"></span></label><input id="steelKey" type="password" autocomplete="off" placeholder="ste-…" spellcheck="false"><div class="settings-info"><b>A small budget, by design.</b><p>Luna with reasoning off. Up to 18 steps and $0.08 per task. $1.80 total tracked OpenAI usage. Steel uses its own credits.</p></div><p class="privacy-note">When you talk, Chrome may send audio to its speech service. Page text and your command go to OpenAI; the remote browser runs on Steel.</p><p id="settingsError" class="error-text" role="alert"></p><button type="submit" class="primary" id="saveKeys">Save keys locally <span>↗</span></button></form></dialog>
-  <script type="module" src="/app.js"></script>
+  <dialog id="settings"><form id="settingsForm"><div class="dialog-heading"><div><p class="eyebrow">LET’S GET ACQUAINTED</p><h2>Make Orbit yours.</h2></div><button id="closeSettings" type="button" class="icon-button" aria-label="Close settings">×</button></div><p>Your keys stay in <code>.env.local</code> on this computer. They are never sent to the extension or stored in your browser.</p><label for="modelMode">Model</label><select id="modelMode" disabled><option value="dynamic">Dynamic · Luna → Astra</option><option value="low">Low · Luna</option><option value="high">High · Astra</option></select><label for="voiceURI">Speaking voice</label><select id="voiceURI" disabled><option value="browser-default">Browser default</option><option value="elevenlabs">ElevenLabs · Eric</option></select><p id="preferencesStatus">Open Settings from the Orbit extension to change model and voice.</p><button id="savePreferences" class="primary" type="button" disabled>Save model &amp; voice</button><button id="pairButton" class="primary" type="button" hidden>Pair extension</button><label for="openaiKey">OpenAI API key <span id="openaiStatus"></span></label><input id="openaiKey" type="password" autocomplete="off" placeholder="sk-…" spellcheck="false"><label for="steelKey">Steel API key <span id="steelStatus"></span></label><input id="steelKey" type="password" autocomplete="off" placeholder="ste-…" spellcheck="false"><label for="elevenlabsKey">ElevenLabs API key · optional <span id="elevenlabsStatus"></span></label><input id="elevenlabsKey" type="password" autocomplete="off" placeholder="ElevenLabs API key" spellcheck="false"><div class="settings-info"><b>A small budget, by design.</b><p>Luna with reasoning off. Up to 18 steps and $0.08 per task. $1.80 total tracked OpenAI usage. Steel uses its own credits.</p></div><p class="privacy-note">When you talk, Chrome may send audio to its speech service. Page text and your command go to OpenAI; the remote browser runs on Steel.</p><p id="settingsError" class="error-text" role="alert"></p><button type="submit" class="primary" id="saveKeys">Save keys locally <span>↗</span></button></form></dialog>
+  <script type="module" src="/app.js?v=silent-landing-2"></script>
 </body>
 </html>

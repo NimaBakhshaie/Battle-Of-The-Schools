@@ -22,10 +22,10 @@ try {
   assert.equal(await cardHidden(), true);
   await shadowClick('orb'); assert.equal(await cardHidden(), false);
   await shadowClick('minimize'); assert.equal(await cardHidden(), true);
-  const bounds = await page.locator('#orbit-widget').boundingBox(); assert.ok(bounds.x > 1000 && bounds.y < 25);
+  const bounds = await page.locator('#orbit-widget').boundingBox(); assert.ok(bounds.x > 1000 && Math.abs(bounds.y + bounds.height / 2 - 450) < 2);
   await page.addScriptTag({ path: 'extension/overlay.js' }); assert.equal(await page.locator('#orbit-widget').count(), 1);
   fs.mkdirSync('artifacts', { recursive: true });
   await page.screenshot({ path: 'artifacts/orbit-overlay.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('Floating overlay renders top-right without duplicate injection or page errors.');
+  console.log('Floating overlay renders centered on the right without duplicate injection or page errors.');
 } finally { await browser.close(); }

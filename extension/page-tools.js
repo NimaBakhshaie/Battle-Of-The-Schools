@@ -5,13 +5,13 @@ export function snapshotPage() {
       return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth && s.visibility !== 'hidden' && s.display !== 'none';
     };
     const roots = [document];
-    for (let i = 0; i < roots.length; i++) for (const el of roots[i].querySelectorAll('*')) if (el.shadowRoot && el.id !== 'orbit-widget') roots.push(el.shadowRoot);
+    for (let i = 0; i < roots.length; i++) for (const el of roots[i].querySelectorAll('*')) if (el.shadowRoot && !['orbit-widget', 'orbit-guidance'].includes(el.id)) roots.push(el.shadowRoot);
     const queryAll = selector => roots.flatMap(root => Array.from(root.querySelectorAll(selector)));
     queryAll('[data-orbit-id]').forEach(el => el.removeAttribute('data-orbit-id'));
     const elements = [];
     for (const el of queryAll('a[href],button,input:not([type=hidden]),textarea,select,[role=button],[role=tab],[role=radio],[role=checkbox],[role=option],[role=menuitem],[role=combobox],[role=spinbutton],[tabindex="0"],[contenteditable=true]')) {
       if (elements.length >= 65) break;
-      if (!visible(el)) continue;
+      if (!visible(el) || el.closest('#orbit-widget,#orbit-guidance')) continue;
       const id = elements.length + 1;
       el.setAttribute('data-orbit-id', String(id));
       const label = clean(el.getAttribute('aria-label') || el.labels?.[0]?.innerText || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('data-tooltip') || el.innerText || el.textContent);
@@ -29,7 +29,7 @@ export function snapshotPage() {
     const walker = document.createTreeWalker(scope === document ? document.body : scope, NodeFilter.SHOW_TEXT);
     while (walker.nextNode() && length < 6500) {
       const node = walker.currentNode, parent = node.parentElement;
-      if (!parent || parent.closest('script,style,noscript,textarea,input,[contenteditable=true]') || !visible(parent)) continue;
+      if (!parent || parent.closest('script,style,noscript,textarea,input,[contenteditable=true],#orbit-widget,#orbit-guidance') || !visible(parent)) continue;
       const text = clean(node.textContent);
       if (text) { parts.push(text); length += text.length; }
     }

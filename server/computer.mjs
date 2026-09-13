@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { saveJson } from './budget.mjs';
+import { snapshotPage } from '../extension/page-tools.js';
 
 // This runtime executes on Steel Computer, not on the user's laptop. The API key
 // is supplied only in the exec environment; it is never written into the script or logs.
@@ -105,6 +106,7 @@ export class SteelComputer {
     }
     if (this.computer.status !== 'running') throw new Error('Steel Computer is taking longer to start. Try connecting again shortly.');
     if (!this.ready) {
+      this.tutorReady = false;
       let result;
       // Read-only readiness probes can retry; model requests below never do.
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -154,11 +156,46 @@ export class SteelComputer {
       return Response.json(envelope.data || {}, { status: Number.isInteger(envelope.status) ? envelope.status : 502 });
     };
   }
+  async prepareTutor() {
+    if (this.tutorReady) return;
+    const install = await this.exec({ argv: ['sh', '-c', 'python3 -m venv /tmp/orbit-agent/venv || (apt-get update -qq && apt-get install -y -qq python3-venv && python3 -m venv /tmp/orbit-agent/venv); /tmp/orbit-agent/venv/bin/pip install --disable-pip-version-check playwright==1.58.0'], timeoutSeconds: 180 }, AbortSignal.timeout(190000));
+    if (install.exitCode !== 0 || install.timedOut) throw new Error('Could not install the tutor browser tools on Steel Computer.');
+    const files = {
+      'tutor.py': fs.readFileSync(new URL('./tutor-runtime.py', import.meta.url), 'utf8'),
+      'snapshot.js': snapshotPage.toString()
+    };
+    const result = await this.exec({ argv: ['python3', '-c', "import pathlib,json,base64,sys; p=pathlib.Path('/tmp/orbit-agent'); [(p/k).write_text(v) for k,v in json.loads(base64.b64decode(sys.argv[1])).items()]", Buffer.from(JSON.stringify(files)).toString('base64')], timeoutSeconds: 15 });
+    if (result.exitCode !== 0) throw new Error('Could not prepare the remote tutor workspace.');
+    this.tutorReady = true;
+  }
+  async tutor(operation, payload, runId, key, signal) {
+    const result = await this.exec({ argv: ['/tmp/orbit-agent/venv/bin/python', '/tmp/orbit-agent/tutor.py', operation, Buffer.from(JSON.stringify(payload)).toString('base64'), runId],
+      env: { OPENAI_API_KEY: key || '', STEEL_API_KEY: this.key }, timeoutSeconds: 100 }, signal || AbortSignal.timeout(110000));
+    if (result.exitCode !== 0 || result.timedOut || result.truncated) throw new Error('The remote tutor did not finish. No paid request was retried.');
+    let envelope;
+    try { envelope = JSON.parse(result.output); } catch { throw new Error('The remote tutor returned an unreadable result.'); }
+    return envelope;
+  }
+  tutorFetcher(key, runId) {
+    return async (_url, options) => {
+      const envelope = await this.tutor('plan', JSON.parse(options.body), runId, key, options.signal);
+      return Response.json(envelope.data || {}, { status: envelope.status || 502 });
+    };
+  }
+  async inspect(url, runId, signal) {
+    const result = await this.tutor('inspect', { url }, runId, '', signal);
+    if (result.status !== 200) throw new Error('Steel Computer could not inspect the practice website.');
+    return result.data;
+  }
+  async releaseTutor(runId) {
+    const result = await this.tutor('release', {}, runId);
+    if (result.status !== 200) throw new Error('Could not release the practice browser. It will expire after 15 minutes.');
+  }
   async pause() {
     if (this.computer?.id) {
       const latest = await this.api(`/computers/${this.computer.id}`);
       if (latest.status === 'running') { await this.api(`/computers/${this.computer.id}/pause`, 'POST', {}); latest.status = 'paused'; }
-      this.computer = latest; this.ready = false;
+      this.computer = latest; this.ready = false; this.tutorReady = false;
     }
   }
   publicState() { return this.computer ? { id: this.computer.id, status: this.computer.status, ready: this.ready, transport: 'Steel Computer' } : null; }

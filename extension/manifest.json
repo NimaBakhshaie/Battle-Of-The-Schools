@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Orbit \u2014 your voice, in motion",
-  "version": "0.4.3",
-  "description": "A floating voice orb for your current tab, powered by an agent running on Steel Computer.",
+  "version": "0.5.0",
+  "description": "Learn any ordinary website with highlights from a tutor exploring on Steel Computer and Steel Browser.",
   "action": {
     "default_title": "Open Orbit",
     "default_icon": {
@@ -17,7 +17,8 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "offscreen"
   ],
   "host_permissions": [
     "https://*/*",
