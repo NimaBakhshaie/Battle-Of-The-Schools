@@ -50,7 +50,7 @@ Orbit cannot run on Chrome's internal pages, including `chrome://extensions`. Op
 1. Open an ordinary website and click the Orbit toolbar icon.
 2. Click the circular Orbit icon on the right side of the page to expand the panel.
 3. Click **Connect Orbit** or **Settings**. Orbit opens its local settings page.
-4. Enter your OpenAI and Steel API keys. The ElevenLabs key is optional.
+4. Enter your OpenAI and Steel API keys.
 5. Click **Save keys locally**, then **Pair extension**.
 6. Return to the website tab.
 
@@ -61,9 +61,6 @@ You can also configure the keys manually. Copy `.env.example` to `.env.local`, f
 ```dotenv
 OPENAI_API_KEY=sk-...
 STEEL_API_KEY=ste-...
-# Optional; the voice ID defaults to Eric when omitted.
-ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICE_ID=...
 ```
 
 ### 5. Ask your first question
@@ -83,7 +80,7 @@ The first question can take a few minutes while Orbit prepares Steel Computer, i
 - Follow the purple highlight in your own tab; Orbit never performs the highlighted action for you.
 - Use **Pause**, **Resume**, or **Stop** to control the current question.
 - If “Hello Orbit” is enabled, say **“Hello Orbit, resume”** to continue a paused question.
-- Open **Settings** to choose a model or switch between a browser voice and ElevenLabs Eric.
+- Open **Settings** to choose a model or switch between a browser voice.
 
 Only one question can be active at a time. Pause or stop it before starting a different question.
 
@@ -106,8 +103,6 @@ The interface distinguishes between:
 - **Public page inspected:** Orbit gathered public evidence but did not rehearse the action.
 - **Guidance from your current page:** the separate browser could not inspect the page, often because it requires a login or is not publicly reachable.
 
-The optional practice viewer is read-only. Perform every real action in your own website tab.
-
 ## Privacy, safety, and limits
 
 - Your cookies, Chrome profile, and logged-in session are not copied to Steel Browser.
@@ -115,8 +110,7 @@ The optional practice viewer is read-only. Perform every real action in your own
 - Passwords, payment details, one-time codes, CAPTCHAs, and sensitive final actions are left to you.
 - Orbit will not complete checkout, publish, send messages, delete records, or change account security settings.
 - Chrome speech recognition may send microphone audio to Chrome's speech provider.
-- When ElevenLabs is selected, reply text is sent to ElevenLabs for speech generation. The local server makes this request so the API key stays out of the extension.
-- The built-in ledger allows up to 60 guidance decisions and $0.25 of tracked OpenAI usage per question, with a $1.80 total limit. These figures are application limits, not live provider balances. Steel and ElevenLabs costs are separate.
+- The built-in ledger allows up to 60 guidance decisions and $0.25 of tracked OpenAI usage per question, with a $1.80 total limit. These figures are application limits, not live provider balances. Steel costs are seperate.
 - Orbit is designed for one trusted local user. Do not expose port 4318 to the public internet.
 
 ## Troubleshooting
@@ -158,6 +152,5 @@ node --env-file=.env.local tests/steel-tutor-smoke.mjs --live
 | Steel Computer | Run the remote tutor environment, model requests, public inspection, and evidence storage |
 | Steel Browser | Provide an isolated public website session and read-only viewer |
 | OpenAI | Select one safe next action for the learner |
-| ElevenLabs | Optionally generate the Eric speaking voice |
 
 Key implementation files are `server/index.mjs`, `server/computer.mjs`, `server/tutor-runtime.py`, `server/planner.mjs`, `extension/background.js`, `extension/guidance.js`, `extension/page-tools.js`, and `extension/overlay.js`.
