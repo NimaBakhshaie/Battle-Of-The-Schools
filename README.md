@@ -12,9 +12,8 @@ To improve its guidance, Orbit can inspect and rehearse safe public navigation i
 - Google Chrome
 - An OpenAI API key
 - A Steel API key with Computer access and available credits
-- Optional: an ElevenLabs API key for the low-latency Eric conversational voice
 
-OpenAI and Steel usage are billed separately. ElevenLabs usage only applies when its voice is selected.
+OpenAI and Steel usage are billed separately.
 
 ## Quick start
 
