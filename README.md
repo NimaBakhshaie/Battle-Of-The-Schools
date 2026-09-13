@@ -1,7 +1,7 @@
 # Orbit
 
-[!IMPORTANT]
-Orbit was created with experimental beta Steel.dev features not yet available to the general public
+>[!IMPORTANT]
+>Orbit was created with experimental beta Steel.dev features not yet available to the general public
 
 Orbit is a Chrome tutoring extension that teaches people how to use websites, one highlighted step at a time.
 
