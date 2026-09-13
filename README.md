@@ -3,6 +3,8 @@
 >[!IMPORTANT]
 >Orbit was created with experimental beta Steel.dev features not yet available to the general public
 
+<img width="1280" height="629" alt="image" src="https://github.com/user-attachments/assets/e491124f-7d61-4f15-95a8-b4691ac3778f" />
+
 Orbit is a Chrome tutoring extension that teaches people how to use websites, one highlighted step at a time.
 
 Ask Orbit a question by typing or speaking—for example, “Show me how to renew my passport.” Orbit studies the page, highlights the next control in your Chrome tab, and tells you what to do. **You remain in control:** Orbit does not click, type, submit forms, or navigate the website for you.
